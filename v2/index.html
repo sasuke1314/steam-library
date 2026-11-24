@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>游戏库</title>
+<style>
+  :root{--fg:#16181d;--muted:#8b909a;--line:#e9eaee;--hover:#f6f7f9;--accent:#1a56db}
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:#fff;color:var(--fg);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:880px;margin:0 auto;padding:0 20px}
+  header{position:sticky;top:0;background:rgba(255,255,255,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);z-index:9}
+  .head{display:flex;align-items:center;gap:18px;height:52px}
+  .brand{font-size:13px;color:var(--muted);letter-spacing:.4px}
+  .tabs{display:flex;gap:2px;margin-left:auto}
+  .tabs button{border:0;background:none;color:var(--muted);font:inherit;font-size:13px;padding:6px 10px;border-radius:6px;cursor:pointer}
+  .tabs button:hover{background:var(--hover);color:var(--fg)}
+  .tabs button.on{color:var(--fg);font-weight:600;background:var(--hover)}
+  .bar{display:flex;align-items:center;gap:10px;padding:0 0 10px}
+  .bar input[type=search]{flex:1;min-width:0;height:32px;border:1px solid var(--line);border-radius:7px;background:#fff;padding:0 10px;font:inherit;font-size:13px;outline:none}
+  .bar input[type=search]:focus{border-color:#c9d4ea}
+  .bar select{height:32px;border:1px solid var(--line);border-radius:7px;background:#fff;font:inherit;font-size:12.5px;color:var(--fg);padding:0 6px;outline:none}
+  .cnt{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;min-width:96px;text-align:right}
+  main{padding:0 0 70px}
+  ul{list-style:none;margin:0;padding:0}
+  li{display:flex;align-items:center;gap:12px;padding:7px 4px;border-bottom:1px solid var(--line)}
+  li:hover{background:var(--hover)}
+  li[hidden]{display:none}
+  .th{width:64px;height:30px;flex:0 0 64px;border-radius:3px;overflow:hidden;background:#f2f3f5}
+  .th img{width:100%;height:100%;object-fit:cover;display:block}
+  .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13.5px}
+  .mt{display:flex;gap:10px;font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums;flex:0 0 auto}
+  .mt .on{color:#1e7b34}
+  .aid{font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums;flex:0 0 auto;min-width:58px;text-align:right}
+  .aid a{color:inherit;text-decoration:none}
+  .aid a:hover{color:var(--accent);text-decoration:underline}
+  .empty,.loading{color:var(--muted);font-size:13px;text-align:center;padding:60px 0}
+  footer{max-width:880px;margin:0 auto;padding:0 20px 40px;color:#b3b7bf;font-size:11.5px;display:flex;gap:10px}
+  footer .sp{flex:1}
+  @media (max-width:600px){.th{width:52px;flex-basis:52px}.mt{display:none}.brand{display:none}}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="head">
+      <span class="brand">游戏库</span>
+      <div class="tabs">
+        <button data-g="780" class="on">780</button>
+        <button data-g="230">230+</button>
+      </div>
+    </div>
+    <div class="bar">
+      <input id="q" type="search" placeholder="搜索名称或 AppID" autocomplete="off">
+      <select id="sort">
+        <option value="i">默认顺序</option>
+        <option value="n">名称 A→Z</option>
+        <option value="a">AppID 小→大</option>
+        <option value="pt">时长从长到短</option>
+      </select>
+      <span class="cnt" id="cnt"></span>
+    </div>
+  </div>
+</header>
+<main class="wrap">
+  <ul id="list"></ul>
+  <div class="loading" id="msg">加载中…</div>
+</main>
+<footer>
+  <span id="stamp">—</span>
+  <span class="sp"></span>
+  <span>每 20 秒自动同步</span>
+</footer>
+
+<script>
+(function () {
+  var listEl = document.getElementById('list');
+  var msgEl = document.getElementById('msg');
+  var qEl = document.getElementById('q');
+  var sortEl = document.getElementById('sort');
+  var cntEl = document.getElementById('cnt');
+  var stampEl = document.getElementById('stamp');
+  var tabBtns = [].slice.call(document.querySelectorAll('.tabs button'));
+
+  var state = { group: '780', data: null, rev: null, q: { '780': '', '230': '' } };
+
+  var collator = new Intl.Collator('zh-Hans-CN', { numeric: true, sensitivity: 'base' });
+
+  function arr() { return state.group === '780' ? (state.data.g780 || []) : (state.data.g230 || []); }
+  function label() { return state.group === '780' ? '780' : '230+'; }
+
+  function fmtRev(rev) {
+    if (!rev || rev.length < 14) return '—';
+    return '数据更新于 ' + rev.slice(0, 4) + '-' + rev.slice(4, 6) + '-' + rev.slice(6, 8) +
+      ' ' + rev.slice(8, 10) + ':' + rev.slice(10, 12);
+  }
+
+  function render() {
+    if (!state.data) return;
+    var q = state.q[state.group].toLowerCase().trim();
+    var items = arr().slice();
+    var mode = sortEl.value;
+    if (mode === 'n') items.sort(function (a, b) { return collator.compare(a.n, b.n); });
+    else if (mode === 'a') items.sort(function (a, b) { return (a.a || 0) - (b.a || 0); });
+    else if (mode === 'pt') items.sort(function (a, b) { return (b.pt || 0) - (a.pt || 0); });
+    else items.sort(function (a, b) { return (a.i || 0) - (b.i || 0); });
+
+    var frag = document.createDocumentFragment();
+    var shown = 0;
+    for (var k = 0; k < items.length; k++) {
+      var g = items[k];
+      var hay = (g.n + ' ' + (g.f || '') + ' ' + (g.a || '')).toLowerCase();
+      if (q && hay.indexOf(q) === -1) continue;
+      shown++;
+
+      var li = document.createElement('li');
+      var th = document.createElement('div'); th.className = 'th';
+      if (g.a) {
+        var img = document.createElement('img');
+        img.loading = 'lazy'; img.alt = '';
+        img.src = 'https://cdn.cloudflare.steamstatic.com/steam/apps/' + g.a + '/header.jpg';
+        img.onerror = function () { this.style.display = 'none'; };
+        th.appendChild(img);
+      }
+      var nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = g.n;
+
+      var mt = document.createElement('div'); mt.className = 'mt';
+      if (g.in) { var a1 = document.createElement('span'); a1.className = 'on'; a1.textContent = '已安装'; mt.appendChild(a1); }
+      if (g.pt !== undefined) { var a2 = document.createElement('span'); a2.textContent = g.pt + ' h'; mt.appendChild(a2); }
+      if (g.sz) { var a3 = document.createElement('span'); a3.textContent = g.sz + ' GB'; mt.appendChild(a3); }
+
+      var aid = document.createElement('div'); aid.className = 'aid';
+      if (g.a) {
+        var link = document.createElement('a');
+        link.href = 'https://store.steampowered.com/app/' + g.a + '/';
+        link.target = '_blank'; link.rel = 'noreferrer'; link.textContent = g.a;
+        aid.appendChild(link);
+      } else { aid.textContent = '—'; }
+
+      li.appendChild(th); li.appendChild(nm); li.appendChild(mt); li.appendChild(aid);
+      frag.appendChild(li);
+    }
+    listEl.innerHTML = '';
+    listEl.appendChild(frag);
+    msgEl.hidden = shown !== 0;
+    if (shown === 0) msgEl.textContent = q ? '没有匹配的游戏' : '这一组还没有内容';
+
+    cntEl.textContent = q ? '匹配 ' + shown + ' / ' + items.length : items.length + ' 个';
+    stampEl.textContent = fmtRev(state.rev);
+    tabBtns.forEach(function (b) { b.classList.toggle('on', b.dataset.g === state.group); });
+  }
+
+  function load(first) {
+    return fetch('data.json?t=' + Date.now(), { cache: 'no-store' })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (d) {
+        if (!state.data || d.rev !== state.rev) {
+          state.data = d;
+          state.rev = d.rev;
+          render();
+        }
+        msgEl.hidden = true;
+      })
+      .catch(function (e) {
+        if (first) { msgEl.textContent = '数据加载失败：' + e.message; msgEl.hidden = false; }
+      });
+  }
+
+  tabBtns.forEach(function (b) {
+    b.addEventListener('click', function () {
+      if (state.group === b.dataset.g) return;
+      state.q[state.group] = qEl.value;
+      state.group = b.dataset.g;
+      qEl.value = state.q[state.group] || '';
+      qEl.placeholder = state.group === '780' ? '在 780 中搜索' : '在 230+ 中搜索';
+      render();
+      try { history.replaceState(null, '', '#' + label()); } catch (e) {}
+    });
+  });
+
+  qEl.addEventListener('input', function () {
+    state.q[state.group] = qEl.value;
+    render();
+  });
+  qEl.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { qEl.value = ''; state.q[state.group] = ''; render(); }
+  });
+  sortEl.addEventListener('change', render);
+
+  var h = (location.hash || '').replace('#', '');
+  if (h === '230+' || h === '230') state.group = '230';
+
+  load(true);
+  setInterval(function () {
+    if (!document.hidden) load(false);
+  }, 20000);
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) load(false);
+  });
+})();
+</script>
+</body>
+</html>

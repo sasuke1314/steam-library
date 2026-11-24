@@ -224,6 +224,13 @@ function dedupePush(arr, item) {
     return btoa(bin);
   }
 
+  function netHint(e) {
+    var m = String((e && e.message) || e);
+    if (/Failed to fetch|NetworkError|Load failed|ERR_FAILED/i.test(m)) {
+      return '连不上 GitHub API —— 你这台机器的 hosts 把 api.github.com 指向了本机，浏览器会拦截。请用「启动管理后台.bat」打开本页（它会用真实 IP 解析）。';
+    }
+    return m;
+  }
   function api(method, path, body) {
     return fetch(API + path, {
       method: method,
@@ -280,7 +287,7 @@ function dedupePush(arr, item) {
       log('已登录 GitHub：' + me.login, 's');
       load();
     }).catch(function (e) {
-      glog('token 无效：' + e.message, 'e');
+      glog('登录失败：' + netHint(e), 'e');
       localStorage.removeItem(TKEY); token = '';
     });
   }
@@ -303,7 +310,7 @@ function dedupePush(arr, item) {
       log('已读取线上数据（rev ' + (st.data.rev || '?') + '）', 's');
     }).catch(function (e) {
       setTag('读取失败');
-      log('读取失败：' + e.message, 'e');
+      log('读取失败：' + netHint(e), 'e');
     });
   }
 
@@ -449,7 +456,7 @@ function dedupePush(arr, item) {
       .catch(function (e) {
         setTag('发布失败');
         $('btnPub').disabled = false;
-        log('发布失败：' + e.message, 'e');
+        log('发布失败：' + netHint(e), 'e');
       });
   }
 

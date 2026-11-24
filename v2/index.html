@@ -193,6 +193,7 @@
 
 <script>
 (function () {
+  var BUILD = '20261124-224947';
   var $ = function (id) { return document.getElementById(id); };
   var collator = new Intl.Collator('zh-Hans-CN', { numeric: true, sensitivity: 'base' });
   var ACCOUNTS = [
@@ -401,6 +402,21 @@
   load(true);
   setInterval(function () { if (!document.hidden) load(false); }, 20000);
   document.addEventListener('visibilitychange', function () { if (!document.hidden) load(false); });
+  // 自更新检测：部署了新页面后自动刷新一次（绕过 GitHub Pages 的 10 分钟 HTML 缓存）
+  (function () {
+    if (sessionStorage.getItem('build') === BUILD) return;
+    setTimeout(function () {
+      fetch('index.html?probe=' + Date.now(), { cache: 'no-store' })
+        .then(function (r) { return r.text(); })
+        .then(function (text) {
+          var m = /var BUILD = '([^']+)'/.exec(text);
+          if (m && m[1] !== BUILD) {
+            sessionStorage.setItem('build', m[1]);
+            location.replace(location.pathname + '?u=' + Date.now() + (location.hash || ''));
+          }
+        }).catch(function () {});
+    }, 1200);
+  })();
 })();
 </script>
 </body>

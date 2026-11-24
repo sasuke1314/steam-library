@@ -23,9 +23,9 @@
   /* header */
   header{position:sticky;top:0;z-index:20;background:rgba(238,243,248,.92);backdrop-filter:blur(12px)}
   .bar{display:flex;align-items:center;gap:10px;height:58px}
-  .ava{width:34px;height:34px;border-radius:50%;background:
-       radial-gradient(circle at 30% 25%,#9fd0ff,#5aa2f0 45%,#2f6fc4);flex:0 0 34px;
-       display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;font-weight:600}
+  .ava{width:34px;height:34px;border-radius:50%;flex:0 0 34px;
+       background:url('avatar.jpg') center/cover no-repeat;
+       box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)}
   .ttl{font-size:15px;font-weight:600;letter-spacing:.2px}
   .bar .sp{flex:1}
   .icon{width:34px;height:34px;border-radius:50%;border:0;background:transparent;color:#7d94a9;
@@ -34,9 +34,9 @@
 
   /* hero */
   .hero{text-align:center;padding:18px 0 22px}
-  .hero .big{width:66px;height:66px;border-radius:50%;margin:0 auto 14px;
-       background:radial-gradient(circle at 30% 25%,#9fd0ff,#5aa2f0 45%,#2f6fc4);
-       display:flex;align-items:center;justify-content:center;color:#fff;font-size:26px;font-weight:600}
+  .hero .big{width:74px;height:74px;border-radius:50%;margin:0 auto 14px;
+       background:url('avatar.jpg') center/cover no-repeat;
+       box-shadow:0 4px 14px rgba(33,74,116,.18), inset 0 0 0 1px rgba(0,0,0,.06)}
   .hero h1{margin:0;font-size:25px;line-height:1.35;font-weight:600;letter-spacing:.3px}
   .hero h1 em{font-style:normal;color:var(--blue)}
   .hero p{margin:10px 0 0;color:#5f7688;font-size:13.5px}
@@ -125,7 +125,7 @@
 <header>
   <div class="shell">
     <div class="bar">
-      <div class="ava">S</div>
+      <div class="ava" aria-hidden="true"></div>
       <div class="ttl">Steam 账号清单 · 目录检索</div>
       <div class="sp"></div>
       <button class="icon" id="btnTheme" title="切换主题" aria-label="切换主题">
@@ -140,7 +140,7 @@
 
 <div class="shell">
   <section class="hero">
-    <div class="big">S</div>
+    <div class="big" aria-hidden="true"></div>
     <h1>你的<br><em>Steam</em> 清单目录</h1>
     <p>浏览两个账号的游戏清单，快速找到想玩的。秋天出品，2026.</p>
   </section>

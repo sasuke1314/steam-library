@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#f6f1e7">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>腕上阅读</title>
+<style>
+  :root{
+    --bg:#f6f1e7; --fg:#2b2620; --muted:#8d8478; --line:#e2d9c9; --accent:#9a6b3f;
+    --card:#fffdf8; --font-size:20px; --line-height:1.85;
+  }
+  html[data-theme="dark"]{--bg:#14161a;--fg:#c9cdd4;--muted:#6f7783;--line:#262b31;--accent:#c8a26a;--card:#1b1f24}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;margin:0}
+  body{
+    background:var(--bg);color:var(--fg);overflow:hidden;
+    font:16px/1.5 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+  [hidden]{display:none !important}
+
+  /* ---------- 书架 ---------- */
+  #shelf{position:fixed;inset:0;display:flex;flex-direction:column;background:var(--bg)}
+  .sbar{display:flex;align-items:center;gap:8px;padding:14px 16px 10px;border-bottom:1px solid var(--line)}
+  .sbar h1{margin:0;font-size:17px;font-weight:650;letter-spacing:.5px}
+  .sbar .sp{flex:1}
+  .sbtn{height:32px;padding:0 12px;border:1px solid var(--line);border-radius:9px;font-size:13px;background:var(--card)}
+  .sbtn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  #slist{flex:1;overflow:auto;padding:6px 12px 24px}
+  .bk{display:flex;align-items:center;gap:12px;padding:12px 10px;border-bottom:1px solid var(--line);cursor:pointer}
+  .bk:active{background:var(--card)}
+  .bk .cov{width:38px;height:48px;border-radius:5px;flex:0 0 38px;background:linear-gradient(160deg,#e5d3b8,#c9a87c);
+          display:flex;align-items:center;justify-content:center;color:#7a5a35;font-size:13px;font-weight:600}
+  .bk .info{flex:1;min-width:0}
+  .bk .t{font-size:15px;font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bk .m{font-size:12px;color:var(--muted);margin-top:3px}
+  .bk .x{font-size:12px;color:var(--muted);padding:6px 8px}
+  .empty{text-align:center;color:var(--muted);padding:56px 20px;font-size:13.5px;line-height:1.9}
+  .empty b{display:block;font-size:15px;color:var(--fg);margin-bottom:8px;font-weight:600}
+
+  /* ---------- 阅读器 ---------- */
+  #reader{position:fixed;inset:0;display:flex;flex-direction:column;background:var(--bg)}
+  #stage{flex:1;position:relative;overflow:hidden;padding:10px 16px 6px}
+  #viewport{width:100%;height:100%;overflow:hidden;position:relative}
+  #flow{
+    height:100%;column-gap:0;column-fill:auto;
+    font-size:var(--font-size);line-height:var(--line-height);
+    font-family:"Songti SC","Songti","SimSun","Noto Serif CJK SC",serif;
+    text-align:justify;transition:transform .18s ease-out;will-change:transform;
+  }
+  #flow p{margin:0 0 .9em;text-indent:2em;break-inside:avoid}
+  #flow p.head{text-indent:0;font-weight:600;text-align:center;margin:0 0 1.1em}
+
+  #tapL,#tapR{position:absolute;top:0;bottom:0;width:38%;z-index:3;cursor:pointer;opacity:0}
+  #tapL{left:0} #tapR{right:0}
+  #tapC{position:absolute;left:38%;right:38%;top:0;bottom:0;z-index:2;opacity:0;cursor:pointer}
+
+  #bar{position:absolute;left:0;right:0;bottom:0;z-index:5;display:flex;align-items:center;gap:6px;
+       padding:8px 12px calc(8px + env(safe-area-inset-bottom));background:linear-gradient(transparent,var(--bg) 40%);
+       border-top:1px solid var(--line);transform:translateY(110%);transition:transform .2s}
+  #bar.on{transform:none}
+  #bar .sp{flex:1}
+  .ib{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+  .ib:active{background:var(--card)}
+  .pageno{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;padding:0 4px}
+
+  #progress{position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--line);z-index:4}
+  #progress i{display:block;height:100%;width:0;background:var(--accent);transition:width .18s}
+
+  #toast{position:fixed;left:50%;bottom:64px;transform:translateX(-50%) translateY(10px);opacity:0;
+         background:rgba(0,0,0,.72);color:#fff;font-size:12.5px;padding:7px 13px;border-radius:999px;
+         transition:.2s;pointer-events:none;z-index:9}
+  #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<!-- 书架 -->
+<div id="shelf">
+  <div class="sbar">
+    <h1>腕上阅读</h1>
+    <span class="sp"></span>
+    <button class="sbtn" id="btnDemo">试读</button>
+    <button class="sbtn primary" id="btnImport">导入 TXT</button>
+  </div>
+  <div id="slist"></div>
+  <input id="file" type="file" accept=".txt,text/plain" multiple hidden>
+</div>
+
+<!-- 阅读器 -->
+<div id="reader" hidden>
+  <div id="stage">
+    <div id="viewport"><div id="flow"></div></div>
+    <div id="tapL"></div>
+    <div id="tapC"></div>
+    <div id="tapR"></div>
+  </div>
+  <div id="progress"><i></i></div>
+  <div id="bar">
+    <button class="ib" id="btnBack" title="书架">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <button class="ib" id="btnMinus" title="字号 -"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></svg></button>
+    <button class="ib" id="btnPlus" title="字号 +"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+    <span class="sp"></span>
+    <span class="pageno" id="pageno">1 / 1</span>
+    <span class="sp"></span>
+    <button class="ib" id="btnTheme" title="主题">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6L17 7M7 17l-1.4 1.4"/></svg>
+    </button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* ---------------- 存储 ---------------- */
+  var DB = 'watch-reader', STORE = 'books';
+  function openDB() {
+    return new Promise(function (res, rej) {
+      var r = indexedDB.open(DB, 1);
+      r.onupgradeneeded = function () { r.result.createObjectStore(STORE, { keyPath: 'id' }); };
+      r.onsuccess = function () { res(r.result); };
+      r.onerror = function () { rej(r.error); };
+    });
+  }
+  function tx(mode) { return openDB().then(function (db) { return db.transaction(STORE, mode).objectStore(STORE); }); }
+  function dbAll() {
+    return tx('readonly').then(function (s) {
+      return new Promise(function (res, rej) {
+        var out = [], q = s.openCursor();
+        q.onsuccess = function (e) { var c = e.target.result; if (c) { out.push(c.value); c.continue(); } else res(out); };
+        q.onerror = function () { rej(q.error); };
+      });
+    });
+  }
+  function dbGet(id) {
+    return tx('readonly').then(function (s) {
+      return new Promise(function (res, rej) { var q = s.get(id); q.onsuccess = function () { res(q.result); }; q.onerror = function () { rej(q.error); }; });
+    });
+  }
+  function dbPut(v) {
+    return tx('readwrite').then(function (s) {
+      return new Promise(function (res, rej) { var q = s.put(v); q.onsuccess = function () { res(v); }; q.onerror = function () { rej(q.error); }; });
+    });
+  }
+  function dbDel(id) {
+    return tx('readwrite').then(function (s) {
+      return new Promise(function (res, rej) { var q = s.delete(id); q.onsuccess = function () { res(); }; q.onerror = function () { rej(q.error); }; });
+    });
+  }
+
+  var SKEY = 'watch-reader:pos';      // { bookId: {percent, page, ts} }
+  var TKEY = 'watch-reader:theme';    // 'light' | 'dark'
+  var FKEY = 'watch-reader:font';     // px
+
+  function loadPos() { try { return JSON.parse(localStorage.getItem(SKEY) || '{}'); } catch (e) { return {}; } }
+  function savePos(id, percent, page) {
+    var all = loadPos();
+    all[id] = { percent: percent, page: page, ts: Date.now() };
+    try { localStorage.setItem(SKEY, JSON.stringify(all)); } catch (e) {}
+  }
+
+  /* ---------------- 状态 ---------------- */
+  var S = {
+    book: null,        // {id,name,text}
+    pages: 1,
+    page: 0,
+    percent: 0,
+    fontSize: Number(localStorage.getItem(FKEY) || 20),
+    theme: localStorage.getItem(TKEY) || 'light'
+  };
+
+  function applyTheme() {
+    document.documentElement.setAttribute('data-theme', S.theme);
+    document.querySelector('meta[name=theme-color]').setAttribute('content', S.theme === 'dark' ? '#14161a' : '#f6f1e7');
+  }
+  function applyFont() {
+    document.documentElement.style.setProperty('--font-size', S.fontSize + 'px');
+    localStorage.setItem(FKEY, String(S.fontSize));
+  }
+
+  var toastTimer = null;
+  function toast(msg) {
+    var t = $('toast'); t.textContent = msg; t.classList.add('on');
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove('on'); }, 1400);
+  }
+
+  /* ---------------- 文本解析 ---------------- */
+  function decodeText(buf) {
+    var utf8 = new TextDecoder('utf-8', { fatal: false }).decode(buf);
+    var bad = (utf8.match(/\uFFFD/g) || []).length;
+    if (bad > 3) {
+      try {
+        var gbk = new TextDecoder('gbk', { fatal: false }).decode(buf);
+        if ((gbk.match(/\uFFFD/g) || []).length < bad) return gbk;
+      } catch (e) {}
+    }
+    return utf8;
+  }
+
+  function buildParagraphs(text) {
+    var lines = text.replace(/\r\n?/g, '\n').split('\n');
+    var frag = document.createDocumentFragment();
+    var n = 0;
+    for (var i = 0; i < lines.length; i++) {
+      var s = lines[i].replace(/^[\s\u3000]+|[\s\u3000]+$/g, '');
+      if (!s) continue;
+      var p = document.createElement('p');
+      var isHead = /^(第[一二三四五六七八九十百千零两\d]+[章节回卷部]|Chapter\s+\d+|序章|楔子|尾声|后记)/i.test(s) && s.length < 40;
+      if (isHead) p.className = 'head';
+      p.textContent = s;
+      frag.appendChild(p);
+      n++;
+      if (n > 60000) break; // 防御：超大文件截断
+    }
+    return frag;
+  }
+
+  /* ---------------- 分页 ---------------- */
+  function layout() {
+    var vp = $('viewport'), flow = $('flow');
+    var w = vp.clientWidth, h = vp.clientHeight;
+    if (w <= 0 || h <= 0) return;
+    flow.style.columnWidth = w + 'px';
+    flow.style.height = h + 'px';
+    flow.style.width = w + 'px';
+    // 强制重排
+    void flow.offsetWidth;
+    var total = Math.max(1, Math.round(flow.scrollWidth / w));
+    S.pages = total;
+    if (S.page > total - 1) S.page = total - 1;
+    render();
+  }
+
+  function render() {
+    var vp = $('viewport'), flow = $('flow');
+    var w = vp.clientWidth;
+    flow.style.transform = 'translateX(' + (-S.page * w) + 'px)';
+    $('pageno').textContent = (S.page + 1) + ' / ' + S.pages;
+    S.percent = S.pages > 1 ? S.page / (S.pages - 1) : 0;
+    $('progress').firstElementChild.style.width = (S.percent * 100).toFixed(1) + '%';
+  }
+
+  function goto(page, silent) {
+    S.page = Math.max(0, Math.min(S.pages - 1, page));
+    render();
+    if (S.book) savePos(S.book.id, S.percent, S.page);
+    if (!silent && S.page === 0 && page < 0) toast('已经是第一页');
+    if (!silent && S.page === S.pages - 1 && page >= S.pages) toast('已经是最后一页');
+  }
+  function next() { goto(S.page + 1); }
+  function prev() { goto(S.page - 1); }
+
+  /* ---------------- 打开 / 关闭 ---------------- */
+  function openBook(book) {
+    S.book = book;
+    S.page = 0;
+    $('shelf').hidden = true;
+    $('reader').hidden = false;
+    var flow = $('flow');
+    flow.innerHTML = '';
+    flow.appendChild(buildParagraphs(book.text));
+    // 先量一次得到页数，再按记忆定位
+    layout();
+    var pos = loadPos()[book.id];
+    if (pos) {
+      var p = pos.percent > 0 ? Math.round(pos.percent * (S.pages - 1)) : (pos.page || 0);
+      S.page = Math.max(0, Math.min(S.pages - 1, p));
+      render();
+      if (S.page > 0) toast('已跳到上次读到的地方');
+    }
+    $('bar').classList.remove('on');
+  }
+
+  function closeBook() {
+    $('reader').hidden = true;
+    $('shelf').hidden = false;
+    S.book = null;
+    renderShelf();
+  }
+
+  /* ---------------- 书架 ---------------- */
+  function fmtSize(n) {
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(0) + ' KB';
+    return (n / 1024 / 1024).toFixed(1) + ' MB';
+  }
+
+  function renderShelf() {
+    dbAll().then(function (books) {
+      books.sort(function (a, b) { return (b.ts || 0) - (a.ts || 0); });
+      var list = $('slist');
+      list.innerHTML = '';
+      if (!books.length) {
+        list.innerHTML = '<div class="empty"><b>书架还是空的</b>点右上角「导入 TXT」选一个本地小说文件<br>（utf-8 / gbk 都能读）</div>';
+        return;
+      }
+      var pos = loadPos();
+      books.forEach(function (b) {
+        var el = document.createElement('div');
+        el.className = 'bk';
+        var pct = pos[b.id] ? Math.round((pos[b.id].percent || 0) * 100) : 0;
+        el.innerHTML = '<div class="cov">' + (b.name || '?').slice(0, 1) + '</div>' +
+          '<div class="info"><div class="t"></div><div class="m">' + fmtSize(b.size || (b.text || '').length * 2) +
+          ' · ' + (pct > 0 ? '已读 ' + pct + '%' : '未开始') + '</div></div>' +
+          '<button class="x" title="删除">✕</button>';
+        el.querySelector('.t').textContent = b.name;
+        el.addEventListener('click', function (ev) {
+          if (ev.target.classList.contains('x')) {
+            ev.stopPropagation();
+            if (confirm('删除《' + b.name + '》？')) dbDel(b.id).then(renderShelf);
+            return;
+          }
+          openBook(b);
+        });
+        list.appendChild(el);
+      });
+    });
+  }
+
+  function importFiles(files) {
+    var arr = [].slice.call(files || []);
+    if (!arr.length) return;
+    var done = 0;
+    arr.forEach(function (f) {
+      var reader = new FileReader();
+      reader.onload = function () {
+        var text = decodeText(new Uint8Array(reader.result));
+        var name = f.name.replace(/\.txt$/i, '');
+        var id = 'b_' + Math.abs(hash(name + text.length + Date.now())).toString(36);
+        dbPut({ id: id, name: name, text: text, size: f.size, ts: Date.now() }).then(function () {
+          done++;
+          if (done === arr.length) { renderShelf(); toast('已导入 ' + done + ' 本'); }
+        });
+      };
+      reader.readAsArrayBuffer(f);
+    });
+  }
+
+  function hash(s) { var h = 0; for (var i = 0; i < s.length; i++) { h = (h << 5) - h + s.charCodeAt(i); h |= 0; } return h; }
+
+  /* ---------------- 交互 ---------------- */
+  function bindControls() {
+    $('tapL').addEventListener('click', prev);
+    $('tapR').addEventListener('click', next);
+    $('tapC').addEventListener('click', function () { $('bar').classList.toggle('on'); });
+
+    $('btnBack').addEventListener('click', closeBook);
+    $('btnPlus').addEventListener('click', function () {
+      S.fontSize = Math.min(34, S.fontSize + 2); applyFont(); layout(); toast('字号 ' + S.fontSize);
+    });
+    $('btnMinus').addEventListener('click', function () {
+      S.fontSize = Math.max(14, S.fontSize - 2); applyFont(); layout(); toast('字号 ' + S.fontSize);
+    });
+    $('btnTheme').addEventListener('click', function () {
+      S.theme = S.theme === 'dark' ? 'light' : 'dark'; applyTheme(); toast(S.theme === 'dark' ? '夜间' : '日间');
+    });
+
+    $('btnImport').addEventListener('click', function () { $('file').click(); });
+    $('file').addEventListener('change', function (e) { importFiles(e.target.files); e.target.value = ''; });
+
+    $('btnDemo').addEventListener('click', function () {
+      var text = DEMO_TEXT;
+      var id = 'demo';
+      dbPut({ id: id, name: '试读：腕上阅读', text: text, size: text.length * 2, ts: Date.now() }).then(function () {
+        dbGet(id).then(openBook);
+      });
+    });
+
+    // 键盘（桌面/蓝牙键盘）
+    document.addEventListener('keydown', function (e) {
+      if ($('reader').hidden) return;
+      if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); next(); }
+      else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+      else if (e.key === 'Escape') closeBook();
+      else if (e.key === '+' || e.key === '=') $('btnPlus').click();
+      else if (e.key === '-') $('btnMinus').click();
+    });
+
+    // 滚轮翻页
+    $('stage').addEventListener('wheel', function (e) {
+      e.preventDefault();
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) { e.deltaX > 0 ? next() : prev(); }
+      else { e.deltaY > 0 ? next() : prev(); }
+    }, { passive: false });
+
+    // 触摸滑动
+    var sx = 0, sy = 0, moved = false;
+    $('stage').addEventListener('touchstart', function (e) {
+      if (e.touches.length !== 1) return;
+      sx = e.touches[0].clientX; sy = e.touches[0].clientY; moved = false;
+    }, { passive: true });
+    $('stage').addEventListener('touchmove', function (e) {
+      if (e.touches.length !== 1) return;
+      var dx = e.touches[0].clientX - sx, dy = e.touches[0].clientY - sy;
+      if (Math.abs(dx) > 24 && Math.abs(dx) > Math.abs(dy)) moved = true;
+    }, { passive: true });
+    $('stage').addEventListener('touchend', function (e) {
+      if (!moved) return;
+      var t = e.changedTouches[0];
+      var dx = t.clientX - sx;
+      if (dx < -40) next(); else if (dx > 40) prev();
+    }, { passive: true });
+
+    window.addEventListener('resize', function () {
+      if ($('reader').hidden) return;
+      layout();
+      if (S.book) {
+        var pos = loadPos()[S.book.id];
+        if (pos) S.page = Math.max(0, Math.min(S.pages - 1, Math.round(pos.percent * (S.pages - 1))));
+        render();
+      }
+    });
+  }
+
+  /* ---------------- 试读文本（原创占位） ---------------- */
+  var DEMO_TEXT = [
+    '第一章 腕上的字',
+    '他把手腕抬起来，屏幕亮了一下，字就浮在那里。',
+    '很小的一块地方，却装得下整整一章。翻页的时候，指尖在表盘上轻轻一划，新的句子就从右边滑进来，旧的句子往左边退出去，像是有人推开一扇窗。',
+    '从前他觉得，读书是需要姿势的：一盏灯、一张桌子、一本摊开的纸。后来他发现，真正需要的只是一个不被打断的十分钟。',
+    '地铁进站的时候，光会扫过车窗。他趁着那几秒，把这一章读完了最后三行。',
+    '出站，风很大。他把手插进外套口袋，手表的屏幕暗下去，记住了一个位置——下次抬腕，就从那里继续。'
+  ].join('\n\n');
+
+  /* ---------------- 启动 ---------------- */
+  applyTheme();
+  applyFont();
+  bindControls();
+  renderShelf();
+
+  // 测试/深链：?demo=1 直接打开试读
+  if (/[?&]demo=1/.test(location.search)) {
+    dbPut({ id: 'demo', name: '试读：腕上阅读', text: DEMO_TEXT, size: DEMO_TEXT.length * 2, ts: Date.now() })
+      .then(function () { return dbGet('demo'); })
+      .then(openBook);
+  }
+})();
+</script>
+</body>
+</html>
